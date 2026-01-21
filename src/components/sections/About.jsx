@@ -4,6 +4,7 @@ import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import SectionTitle from '../ui/SectionTitle';
 import GlassCard from '../ui/GlassCard';
 import Button from '../ui/Button';
+import Logicom from '../../assets/images/who-we-are-min.webp';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -162,7 +163,7 @@ const About = () => {
           <div ref={imageRef} className="relative">
             <div className="relative rounded-3xl overflow-hidden">
               <img
-                src="https://qmexhibitions.com/wp-content/uploads/2025/12/who-we-are-min-768x512-1.webp"
+                src={Logicom}
                 alt="Exhibitions stand design & fabrication"
                 className="w-full h-[500px] object-cover"
               />
