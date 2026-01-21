@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import Button from '../ui/Button';
-import HeroVideo from '../../assets/video/qmurphy-hero-video.mp4';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -240,7 +239,7 @@ const Hero = () => {
           playsInline
           className="video-bg"
         >
-          <source src={HeroVideo} type="video/mp4" />
+          <source src="https://qmexhibitions.com/wp-content/uploads/2025/12/ascott-2025@atm-QMurphy-1.mp4" type="video/mp4" />
         </video>
         
         {/* Overlay Gradients */}
