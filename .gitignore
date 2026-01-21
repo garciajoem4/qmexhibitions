@@ -41,5 +41,3 @@ Thumbs.db
 .cache
 .eslintcache
 *.tsbuildinfo
-# Large video files
-src/assets/video/*.mp4
