@@ -215,12 +215,12 @@ const Services = () => {
               </p>
 
               {/* Hover indicator */}
-              <div className="mt-6 flex items-center gap-2 text-accent-gold opacity-0 group-hover:opacity-100 transform translate-x-[-10px] group-hover:translate-x-0 transition-all duration-300">
+              {/* <div className="mt-6 flex items-center gap-2 text-accent-gold opacity-0 group-hover:opacity-100 transform translate-x-[-10px] group-hover:translate-x-0 transition-all duration-300">
                 <span className="text-sm font-medium">Learn more</span>
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
                 </svg>
-              </div>
+              </div> */}
             </GlassCard>
           ))}
         </div>
