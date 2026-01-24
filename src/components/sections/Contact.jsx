@@ -1,15 +1,78 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import * as THREE from 'three';
 import SectionTitle from '../ui/SectionTitle';
 import GlassCard from '../ui/GlassCard';
 import Button from '../ui/Button';
 
 gsap.registerPlugin(ScrollTrigger);
 
+// Vertex shader
+const vertexShader = `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+// Fragment shader for gold gradient effect
+const fragmentShader = `
+  uniform float uCircleProgress;
+  uniform vec2 uMouse;
+  uniform vec2 uResolution;
+  
+  varying vec2 vUv;
+  
+  // Gold color palette
+  vec3 gold1 = vec3(0.831, 0.686, 0.216);  // Bright gold
+  vec3 gold2 = vec3(0.722, 0.525, 0.043);  // Deep gold
+  vec3 bgColor = vec3(0.02, 0.02, 0.03);   // Dark background
+  
+  void main() {
+    vec2 uv = vUv;
+    vec2 aspect = vec2(uResolution.x / uResolution.y, 1.0);
+    vec2 uvAspect = uv * aspect;
+    
+    // Mouse position with aspect correction
+    vec2 mouse = uMouse * aspect;
+    
+    // Static gradient that follows mouse gently
+    vec2 center = mix(vec2(0.5) * aspect, mouse, 0.2 * uCircleProgress);
+    float dist = length(uvAspect - center);
+    
+    // Soft radial gradient (static, no animation)
+    float gradient = smoothstep(0.8, 0.0, dist) * uCircleProgress;
+    
+    // Simple gold color blend based on distance
+    vec3 goldColor = mix(gold1, gold2, dist * 0.8);
+    
+    // Start with background
+    vec3 color = bgColor;
+    
+    // Add soft gold gradient
+    color = mix(color, goldColor, gradient * 0.35);
+    
+    gl_FragColor = vec4(color, gradient * 0.5);
+  }
+`;
+
+// Breakpoint for hiding animation (covers mobile and iPad)
+const DESKTOP_BREAKPOINT = 1024;
+
 const Contact = () => {
   const sectionRef = useRef(null);
   const formRef = useRef(null);
+  const canvasRef = useRef(null);
+  const rendererRef = useRef(null);
+  const sceneRef = useRef(null);
+  const materialRef = useRef(null);
+  const animationRef = useRef(null);
+  const mouseRef = useRef({ x: 0.5, y: 0.5 });
+  const targetMouseRef = useRef({ x: 0.5, y: 0.5 });
+  const uniformsRef = useRef(null);
+  
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -18,6 +81,21 @@ const Contact = () => {
     message: '',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(false);
+
+  // Check if we're on desktop
+  useEffect(() => {
+    const checkIsDesktop = () => {
+      setIsDesktop(window.innerWidth >= DESKTOP_BREAKPOINT);
+    };
+    
+    // Initial check
+    checkIsDesktop();
+    
+    // Listen for resize
+    window.addEventListener('resize', checkIsDesktop);
+    return () => window.removeEventListener('resize', checkIsDesktop);
+  }, []);
 
   const contactInfo = [
     {
@@ -53,8 +131,99 @@ const Contact = () => {
     },
   ];
 
+  // Three.js setup (desktop only)
+  useEffect(() => {
+    if (!isDesktop || !canvasRef.current || !sectionRef.current) return;
+
+    // Scene setup
+    const scene = new THREE.Scene();
+    sceneRef.current = scene;
+
+    // Camera
+    const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 10);
+    camera.position.z = 1;
+
+    // Renderer
+    const renderer = new THREE.WebGLRenderer({
+      canvas: canvasRef.current,
+      alpha: true,
+      antialias: true,
+    });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    rendererRef.current = renderer;
+
+    // Uniforms
+    const uniforms = {
+      uCircleProgress: { value: 0 },
+      uMouse: { value: new THREE.Vector2(0.5, 0.5) },
+      uResolution: { value: new THREE.Vector2(1, 1) },
+    };
+    uniformsRef.current = uniforms;
+
+    // Shader material
+    const material = new THREE.ShaderMaterial({
+      vertexShader,
+      fragmentShader,
+      uniforms,
+      transparent: true,
+    });
+    materialRef.current = material;
+
+    // Plane geometry (fullscreen quad)
+    const geometry = new THREE.PlaneGeometry(2, 2);
+    const mesh = new THREE.Mesh(geometry, material);
+    scene.add(mesh);
+
+    // Handle resize
+    const handleResize = () => {
+      const rect = sectionRef.current.getBoundingClientRect();
+      renderer.setSize(rect.width, rect.height);
+      uniforms.uResolution.value.set(rect.width, rect.height);
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+
+    // Animation loop (only for smooth mouse tracking)
+    const animate = () => {
+      // Smooth mouse interpolation
+      mouseRef.current.x += (targetMouseRef.current.x - mouseRef.current.x) * 0.05;
+      mouseRef.current.y += (targetMouseRef.current.y - mouseRef.current.y) * 0.05;
+      uniforms.uMouse.value.set(mouseRef.current.x, mouseRef.current.y);
+
+      renderer.render(scene, camera);
+      animationRef.current = requestAnimationFrame(animate);
+    };
+    animate();
+
+    // Cleanup
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+      renderer.dispose();
+      geometry.dispose();
+      material.dispose();
+    };
+  }, [isDesktop]);
+
+  // GSAP ScrollTrigger for animation phases
   useEffect(() => {
     const ctx = gsap.context(() => {
+      // Circle gradient animation when section comes into view (desktop only)
+      if (isDesktop && uniformsRef.current) {
+        gsap.to(uniformsRef.current.uCircleProgress, {
+          value: 1,
+          duration: 1.5,
+          ease: 'power2.out',
+          scrollTrigger: {
+            trigger: sectionRef.current,
+            start: 'top 80%',
+            toggleActions: 'play none none reverse',
+          },
+        });
+      }
+
       // Animate section title
       gsap.fromTo(
         '.contact-title',
@@ -119,7 +288,15 @@ const Contact = () => {
     }, sectionRef);
 
     return () => ctx.revert();
-  }, []);
+  }, [isDesktop]);
+
+  // Mouse movement handler (desktop only)
+  const handleMouseMove = useCallback((e) => {
+    if (!isDesktop || !sectionRef.current) return;
+    const rect = sectionRef.current.getBoundingClientRect();
+    targetMouseRef.current.x = (e.clientX - rect.left) / rect.width;
+    targetMouseRef.current.y = 1.0 - (e.clientY - rect.top) / rect.height;
+  }, [isDesktop]);
 
   const handleChange = (e) => {
     setFormData({
@@ -158,14 +335,24 @@ const Contact = () => {
       ref={sectionRef}
       id="contact"
       className="relative py-24 lg:py-32 overflow-hidden"
+      onMouseMove={isDesktop ? handleMouseMove : undefined}
     >
-      {/* Background decoration */}
-      <div className="absolute inset-0 pointer-events-none">
+      {/* Three.js Gold Gradient Background (desktop only) */}
+      {isDesktop && (
+        <canvas
+          ref={canvasRef}
+          className="absolute inset-0 w-full h-full pointer-events-none z-0"
+          style={{ opacity: 0.9 }}
+        />
+      )}
+      
+      {/* Background decoration - subtle overlay */}
+      <div className="absolute inset-0 pointer-events-none z-[1]">
         <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-accent-gold/5 rounded-full blur-[120px]" />
         <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-primary-500/5 rounded-full blur-[100px]" />
       </div>
 
-      <div className="container mx-auto px-6 lg:px-12 relative z-10">
+      <div className="container mx-auto px-6 lg:px-12 relative z-[2]">
         {/* Section Title */}
         <div className="contact-title">
           <SectionTitle
